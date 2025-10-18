@@ -1,0 +1,176 @@
+CREATE DATABASE IF NOT EXISTS rentflow_db;
+USE rentflow_db;
+
+-- ===========================
+-- 1. TABLA ROLES
+-- ===========================
+CREATE TABLE roles (
+    id_rol INT AUTO_INCREMENT PRIMARY KEY,
+    nombre_rol VARCHAR(50) NOT NULL
+);
+
+INSERT INTO roles (nombre_rol) VALUES
+('Administrador'),
+('Vendedor'),
+('Cliente');
+
+-- ===========================
+-- 2. TABLA USUARIOS
+-- ===========================
+CREATE TABLE usuarios (
+    id_usuario INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    telefono VARCHAR(20),
+    direccion VARCHAR(150),
+    puntos INT DEFAULT 0,
+    id_rol INT NOT NULL,
+    nivel VARCHAR(50) DEFAULT 'Bronce',
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_rol) REFERENCES roles(id_rol)
+);
+
+-- ===========================
+-- 3. TABLA VEHICULOS
+-- ===========================
+CREATE TABLE vehiculos (
+    id_vehiculo INT AUTO_INCREMENT PRIMARY KEY,
+    id_vendedor INT NOT NULL,
+    marca VARCHAR(100) NOT NULL,
+    modelo VARCHAR(100) NOT NULL,
+    anio INT,
+    precio_por_dia DECIMAL(10,2) NOT NULL,
+    descripcion TEXT,
+    estado ENUM('Disponible', 'Reservado', 'Mantenimiento') DEFAULT 'Disponible',
+    ubicacion VARCHAR(100),
+    tipo VARCHAR(50),
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_vendedor) REFERENCES usuarios(id_usuario)
+);
+
+-- ===========================
+-- 4. TABLA RESERVAS
+-- ===========================
+CREATE TABLE reservas (
+    id_reserva INT AUTO_INCREMENT PRIMARY KEY,
+    id_cliente INT NOT NULL,
+    id_vehiculo INT NOT NULL,
+    fecha_inicio DATE NOT NULL,
+    fecha_fin DATE NOT NULL,
+    estado ENUM('Pendiente', 'Confirmada', 'Cancelada', 'Finalizada') DEFAULT 'Pendiente',
+    total DECIMAL(10,2),
+    fecha_reserva TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_cliente) REFERENCES usuarios(id_usuario),
+    FOREIGN KEY (id_vehiculo) REFERENCES vehiculos(id_vehiculo)
+);
+
+-- ===========================
+-- 5. TABLA HISTORIAL RESERVAS
+-- ===========================
+CREATE TABLE historial_reservas (
+    id_historial INT AUTO_INCREMENT PRIMARY KEY,
+    id_reserva INT NOT NULL,
+    id_usuario INT NOT NULL,
+    estado_anterior ENUM('Pendiente', 'Confirmada', 'Cancelada', 'Finalizada'),
+    estado_nuevo ENUM('Pendiente', 'Confirmada', 'Cancelada', 'Finalizada'),
+    fecha_cambio TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_reserva) REFERENCES reservas(id_reserva),
+    FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario)
+);
+
+-- ===========================
+-- 6. TABLA FACTURAS
+-- ===========================
+CREATE TABLE facturas (
+    id_factura INT AUTO_INCREMENT PRIMARY KEY,
+    id_reserva INT UNIQUE NOT NULL,
+    fecha_emision TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    subtotal DECIMAL(10,2) NOT NULL,
+    descuento DECIMAL(10,2) DEFAULT 0,
+    total DECIMAL(10,2) NOT NULL,
+    FOREIGN KEY (id_reserva) REFERENCES reservas(id_reserva)
+);
+
+-- ===========================
+-- 7. TABLA PAGOS
+-- ===========================
+CREATE TABLE pagos (
+    id_pago INT AUTO_INCREMENT PRIMARY KEY,
+    id_factura INT NOT NULL,
+    metodo_pago ENUM('Tarjeta', 'PayPal', 'Transferencia', 'Crédito') NOT NULL,
+    monto DECIMAL(10,2) NOT NULL,
+    fecha_pago TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    estado ENUM('Pendiente', 'Completado', 'Fallido') DEFAULT 'Completado',
+    FOREIGN KEY (id_factura) REFERENCES facturas(id_factura)
+);
+
+-- ===========================
+-- 8. TABLA MANTENIMIENTOS
+-- ===========================
+CREATE TABLE mantenimientos (
+    id_mantenimiento INT AUTO_INCREMENT PRIMARY KEY,
+    id_vehiculo INT NOT NULL,
+    tipo ENUM('Preventivo', 'Correctivo') NOT NULL,
+    descripcion TEXT,
+    costo DECIMAL(10,2),
+    fecha_mantenimiento DATE NOT NULL,
+    FOREIGN KEY (id_vehiculo) REFERENCES vehiculos(id_vehiculo)
+);
+
+-- ===========================
+-- 9. TABLA SEGUIMIENTO RESERVAS (TRACKING)
+-- ===========================
+CREATE TABLE seguimiento_reservas (
+    id_seguimiento INT AUTO_INCREMENT PRIMARY KEY,
+    id_reserva INT NOT NULL,
+    estado_logistico ENUM('Pendiente Retiro', 'En Uso', 'Devuelto') DEFAULT 'Pendiente Retiro',
+    ubicacion_actual VARCHAR(150),
+    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_reserva) REFERENCES reservas(id_reserva)
+);
+
+-- ===========================
+-- 10. TABLA RESEÑAS
+-- ===========================
+CREATE TABLE resenas (
+    id_resena INT AUTO_INCREMENT PRIMARY KEY,
+    id_reserva INT NOT NULL,
+    id_cliente INT NOT NULL,
+    calificacion INT CHECK (calificacion BETWEEN 1 AND 5),
+    comentario TEXT,
+    fecha_resena TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_reserva) REFERENCES reservas(id_reserva),
+    FOREIGN KEY (id_cliente) REFERENCES usuarios(id_usuario)
+);
+
+-- ===========================
+-- 11. TABLA PROMOCIONES (SISTEMA DE PUNTOS)
+-- ===========================
+CREATE TABLE promociones (
+    id_promocion INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    descripcion TEXT,
+    puntos_requeridos INT NOT NULL,
+    tipo_descuento ENUM('Porcentaje', 'Monto') NOT NULL,
+    valor_descuento DECIMAL(10,2) NOT NULL,
+    nivel_minimo ENUM('Bronce', 'Plata', 'Oro') DEFAULT 'Bronce'
+);
+
+INSERT INTO promociones (nombre, descripcion, puntos_requeridos, tipo_descuento, valor_descuento, nivel_minimo) VALUES
+('5% Off Next Rental', 'Descuento del 5% en tu próximo arriendo', 500, 'Porcentaje', 5, 'Bronce'),
+('$10 Off Weekend Rental', 'Descuento de $10 en arriendos de fin de semana', 800, 'Monto', 10, 'Plata'),
+('15% Off Premium Vehicles', '15% descuento en vehículos premium', 1200, 'Porcentaje', 15, 'Plata'),
+('$25 Off Long-term Rental', 'Descuento de $25 en arriendos mayores a 7 días', 1500, 'Monto', 25, 'Oro');
+
+-- ===========================
+-- 12. TABLA USUARIOS_PROMOCIONES (relación N:M)
+-- ===========================
+CREATE TABLE usuarios_promociones (
+    id_usuario INT NOT NULL,
+    id_promocion INT NOT NULL,
+    fecha_aplicacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id_usuario, id_promocion),
+    FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario),
+    FOREIGN KEY (id_promocion) REFERENCES promociones(id_promocion)
+);
